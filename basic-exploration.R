@@ -37,19 +37,26 @@ incidents_sp <- as(incidents, "Spatial")
 # calculate kernel density
 kernel_incidents <- sp.kde(x = incidents_sp,
                            y = incidents_sp$weight,
-                           nr = 100,
-                           nc = 100)
-plot(kernel_incidents)
+                           bw = 7500,
+                           nr = 1000,
+                           nc = 1000)
+
+# convert 0 points to NA
+kernel_incidents_thin <- kernel_incidents
+kernel_incidents_thin[kernel_incidents_thin < 0.0000000000001] <- NA
+# kernel_incidents_thin[kernel_incidents_thin == 0] <- NA
+
+plot(kernel_incidents, col=viridis(256))
 
 # calculate various rasters
-kernel_95 <- raster.vol(test, p = 0.95)
-kernel_75 <- raster.vol(test, p = 0.75)
-kernel_50 <- raster.vol(test, p = 0.50)
+# https://gis.stackexchange.com/questions/272950/95-contour-from-kernel-density-estimates
+kernel_95 <- raster.vol(kernel_incidents, p = 0.95)
+kernel_75 <- raster.vol(kernel_incidents, p = 0.75)
+kernel_50 <- raster.vol(kernel_incidents, p = 0.50)
 
+plot(kernel_95)
 plot(kernel_75)
 plot(kernel_50)
 
-# convert to polygons
-kernel_95_poly <- rasterToPolygons(kernel_95)
 
-# https://gis.stackexchange.com/questions/272950/95-contour-from-kernel-density-estimates
+
