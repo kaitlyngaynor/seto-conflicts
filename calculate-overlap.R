@@ -1,0 +1,131 @@
+library(sf)
+library(raster)
+library(tidyr)
+library(spatialEco)
+library(dplyr)
+library(mapview)
+library(ggplot2)
+
+setwd("~/Dropbox/AAS GIS")
+
+# import raster of modeled incidents
+kernel_incidents <- raster("Kelly Data/kelly_kernd1")
+kernel_incidents[kernel_incidents == 0] <- NA
+plot(kernel_incidents)
+
+# import and reproject all spatial data layers
+eez <- st_read("Kelly Data/coastlinebufftoEEZ_15km.shp") %>% 
+    st_transform(crs = "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs")
+port_10 <- st_read("Kelly Data/3Port_10km.shp") %>% 
+    st_transform(crs = "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs")
+port_20 <- st_read("Kelly Data/3Port_20km.shp") %>% 
+    st_transform(crs = "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs")
+contour_30 <- st_read("Kelly Data/30mContourpoly.shp") %>% 
+    st_transform(crs = "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs")
+iez <- st_read("AAS_Layers/IEZ.shp") %>% 
+    st_transform(crs = "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs")
+
+calculate_overlap <- function(kernel) {
+    
+    # calculate the kernel of interest
+    kernel_layer <- raster.vol(kernel_incidents, p = kernel)
+    
+    plot(kernel_layer)
+    
+    # calculate number of pixels = 1
+    kernel_area <- cellStats(kernel_layer, 'sum')
+    
+    overlap <- data.frame(kernel = paste0("K", kernel),
+                          kernel_num = kernel,
+                          iez = cellStats(crop(kernel_layer, iez), 'sum')/kernel_area,
+                          port_10 = cellStats(crop(kernel_layer, port_10), 'sum')/kernel_area,
+                          port_20 = cellStats(crop(kernel_layer, port_20), 'sum')/kernel_area,
+                          contour_30 = cellStats(crop(kernel_layer, contour_30), 'sum')/kernel_area)
+    
+    return(overlap)
+    
+}
+
+kernel_list <- c(seq(0.5, 0.95, by = 0.05), 0.99)
+
+overlap_all <- lapply(kernel_list, calculate_overlap) %>% 
+    bind_rows
+
+
+# Figures -----------------------------------------------------------------
+
+overlap_few <- overlap_all %>% 
+    filter(kernel %in% c("K0.5", "K0.75", "K0.95", "K0.99")) %>% 
+    pivot_longer(cols = iez:contour_30,
+                 names_to = "layer",
+                 values_to = "overlap")
+
+ggplot(overlap_few, aes(x = layer, y = overlap, fill = kernel)) +
+    geom_bar(stat = "identity",
+             position = "dodge") +
+    theme_bw() +
+    xlab("Spatial Feature") +
+    ylab("Percent Overlap")
+
+# just 50 and 99
+overlap_fewer <- overlap_all %>% 
+    filter(kernel %in% c("K0.5", "K0.95")) %>% 
+    mutate(kernel2 = recode_factor(kernel, "K0.5" = "Conflict Hotspots", "K0.95" = "95% Conflict Zone")) %>% 
+    pivot_longer(cols = iez:contour_30,
+                 names_to = "layer",
+                 values_to = "overlap")
+
+ggplot(overlap_fewer, aes(x = layer, y = overlap, fill = kernel2)) +
+    geom_bar(stat = "identity",
+             position = "dodge") +
+    scale_fill_manual(values = c("#e9c46a", "#e76f51")) +
+    theme_bw() +
+    xlab("Spatial Feature") +
+    ylab("Percent Overlap")
+
+# calculate version with marginal 
+overlap_marginal <- overlap_few %>%
+    select(-kernel_num) %>% 
+    pivot_wider(values_from = overlap, names_from = kernel) %>% 
+    mutate(K0.5 = K0.5 - K0.75,
+           K0.75 = K0.75 - K0.95,
+           K0.95 = K0.95 - K0.99) %>% 
+    pivot_longer(cols = K0.5:K0.99,
+                 names_to = "kernel",
+                 values_to = "overlap")
+
+ggplot(overlap_marginal, aes(x = layer, y = overlap, fill = kernel), col = reds) +
+    geom_bar(stat = "identity") +
+    scale_fill_brewer(palette = "Greens") +
+    theme_bw() +
+    xlab("Spatial Feature") +
+    ylab("Percent Overlap")
+
+# something continuous?
+overlap_long <- overlap_all %>% 
+    pivot_longer(cols = iez:contour_30,
+                 names_to = "layer",
+                 values_to = "overlap")
+ggplot(overlap_long, aes(x = kernel_num, y = overlap, col = layer)) +
+    geom_line(size = 1) +
+    theme_bw()
+
+# make a map of kernels
+kernel_99 <- raster.vol(kernel_incidents, p = 0.99)
+kernel_95 <- raster.vol(kernel_incidents, p = 0.95)
+kernel_75 <- raster.vol(kernel_incidents, p = 0.75)
+kernel_50 <- raster.vol(kernel_incidents, p = 0.50)
+all_kernel <- kernel_50 + kernel_75 + kernel_95 + kernel_99
+all_kernel[all_kernel == 0] <- NA
+plot(all_kernel)
+mapview(all_kernel)
+
+library(RColorBrewer)
+greens4 <- brewer.pal(n = 4, name = "Greens")
+plot(all_kernel, col = greens4)
+
+# make a map of just 2 kernels
+all_kernel2 <- kernel_50 + kernel_95
+all_kernel2[all_kernel2 == 0] <- NA
+reds <- brewer.pal(n = 3, name = "Reds")
+plot(all_kernel2, col = c("#e9c46a", "#e76f51"))
