@@ -5,6 +5,8 @@ library(spatialEco)
 library(dplyr)
 library(mapview)
 library(ggplot2)
+library(forcats)
+library(stringr)
 
 setwd("~/Dropbox/AAS GIS")
 
@@ -52,8 +54,119 @@ kernel_list <- c(seq(0.5, 0.95, by = 0.05), 0.99)
 overlap_all <- lapply(kernel_list, calculate_overlap) %>% 
     bind_rows
 
+# Publication figures -----------------------------------------------------------------
 
-# Figures -----------------------------------------------------------------
+# Bar plot
+overlap_all %>% 
+    filter(kernel %in% c("K0.5", "K0.95", "K0.99")) %>% 
+    mutate(kernel2 = recode_factor(kernel, "K0.5" = "50%", 
+                                   "K0.95" = "95%",
+                                   "K0.99" = "99%")) %>% 
+    pivot_longer(cols = iez:contour_75,
+                 names_to = "layer",
+                 values_to = "overlap") %>% 
+    mutate(layer = recode_factor(layer, "contour_30" = "30m Isobath", 
+                                 "contour_75" = "Continental Shelf",
+                                 "iez" = "Inshore Exclusion Zone",
+                                 "port_10" = "10km from Port",
+                                 "port_20" = "20km from Port")) %>% 
+ggplot(aes(x = layer, y = overlap, fill = kernel2)) +
+    geom_bar(stat = "identity",
+             position = "dodge") +
+    scale_fill_manual(values = c("#e76f51","#e3a612", "#e9c46a")) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 8)) +
+    theme_bw() +
+    xlab("") +
+    ylab("Overlap with Spatial Feature") +
+    labs(fill = "Conflict Isopleth")
+ggsave("Kaitlyn Data/overlap-bar.pdf", width = 6, height = 3)
+
+# Bar plot v2
+overlap_few %>%
+    select(-c(kernel_num, kernel2)) %>% 
+    pivot_wider(values_from = overlap, names_from = kernel) %>% 
+    mutate(K0.5 = K0.5 - K0.95,
+           K0.95 = K0.95 - K0.99) %>% 
+    pivot_longer(cols = K0.5:K0.99,
+                 names_to = "kernel",
+                 values_to = "overlap") %>% 
+    mutate(layer = recode_factor(layer, "contour_30" = "30m Isobath", 
+                                 "contour_75" = "Continental Shelf",
+                                 "iez" = "Inshore Exclusion Zone",
+                                 "port_10" = "10km from Port",
+                                 "port_20" = "20km from Port")) %>% 
+    mutate(kernel2 = recode_factor(kernel, "K0.5" = "50%", 
+                                   "K0.95" = "95%",
+                                   "K0.99" = "99%")) %>% 
+    ggplot(aes(x = layer, y = overlap, fill = kernel2)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = c("#e76f51","#e3a612", "#e9c46a")) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 8)) +
+    theme_bw() +
+    xlab("") +
+    ylab("Overlap with Spatial Feature") +
+    labs(fill = "Conflict Isopleth")
+ggsave("Kaitlyn Data/overlap-bar-v2.pdf", width = 6, height = 3)
+
+
+# make a map of kernels
+kernel_99 <- raster.vol(kernel_incidents, p = 0.99)
+kernel_95 <- raster.vol(kernel_incidents, p = 0.95)
+kernel_50 <- raster.vol(kernel_incidents, p = 0.50)
+all_kernel <- kernel_50 + kernel_95 + kernel_99
+all_kernel[all_kernel == 0] <- NA
+plot(all_kernel, col = c("#e9c46a", "#e3a612", "#e76f51"))
+
+
+# Line plot
+overlap_all %>% 
+    pivot_longer(cols = iez:contour_75,
+                 names_to = "layer",
+                 values_to = "overlap") %>% 
+    mutate(layer = recode_factor(layer, "contour_30" = "30m Isobath", 
+                                 "contour_75" = "Continental Shelf",
+                                 "iez" = "Inshore Exclusion Zone",
+                                 "port_10" = "10km from Port",
+                                 "port_20" = "20km from Port")) %>% 
+    mutate(layer = fct_reorder(layer, desc(overlap))) %>% 
+ggplot(aes(x = kernel_num, y = overlap, col = layer)) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+    #scale_x_continuous(labels = scales::percent_format(scale = 100)) +
+    scale_x_reverse() +
+    scale_color_manual(values = c("#3CB7CC", "#FFD94A", "#32A251", "#FF7F0F", "#B85A0D")) +
+    geom_line(size = 1) +
+    theme_bw() +
+    ylab("Overlap with Spatial Feature") +
+    xlab("Modeled Conflict Intensity (Isopleth)") +
+    theme(legend.title = element_blank())
+ggsave("Kaitlyn Data/overlap-line.pdf", width = 6, height = 3)
+
+# Line plot v2
+overlap_all %>% 
+    pivot_longer(cols = iez:contour_75,
+                 names_to = "layer",
+                 values_to = "overlap") %>% 
+    mutate(layer = recode_factor(layer, "contour_30" = "30m Isobath", 
+                                 "contour_75" = "Continental Shelf",
+                                 "iez" = "Inshore Exclusion Zone",
+                                 "port_10" = "10km from Port",
+                                 "port_20" = "20km from Port")) %>% 
+    mutate(layer = fct_reorder(layer, desc(overlap))) %>% 
+    ggplot(aes(x = kernel_num, y = overlap, col = layer)) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+    #scale_x_continuous(labels = scales::percent_format(scale = 100)) +
+    #scale_x_reverse() +
+    scale_color_manual(values = c("#3CB7CC", "#FFD94A", "#32A251", "#FF7F0F", "#B85A0D")) +
+    geom_line(size = 1) +
+    theme_bw() +
+    ylab("Overlap with Spatial Feature") +
+    xlab("Modeled Conflict Intensity (Isopleth)") +
+    theme(legend.title = element_blank())
+ggsave("Kaitlyn Data/overlap-line-v2.pdf", width = 6, height = 3)
+
+# Extra figures -----------------------------------------------------------------
 
 overlap_few <- overlap_all %>% 
     filter(kernel %in% c("K0.5", "K0.95", "K0.99")) %>% 
@@ -139,20 +252,5 @@ ggplot(overlap_long, aes(x = kernel_num, y = overlap, col = layer)) +
     geom_line(size = 1) +
     theme_bw()
 
-# make a map of kernels
-kernel_99 <- raster.vol(kernel_incidents, p = 0.99)
-kernel_95 <- raster.vol(kernel_incidents, p = 0.95)
-kernel_50 <- raster.vol(kernel_incidents, p = 0.50)
-all_kernel <- kernel_50 + kernel_95 + kernel_99
-all_kernel[all_kernel == 0] <- NA
-plot(all_kernel, col = c("#e9c46a", "#e3a612", "#e76f51"))
-mapview(all_kernel)
 
-library(RColorBrewer)
-greens4 <- brewer.pal(n = 4, name = "Greens")
-plot(all_kernel, col = greens4)
 
-# make a map of just 2 kernels
-all_kernel2 <- kernel_50 + kernel_95
-all_kernel2[all_kernel2 == 0] <- NA
-plot(all_kernel2, col = c("#e9c46a", "#e76f51"))
