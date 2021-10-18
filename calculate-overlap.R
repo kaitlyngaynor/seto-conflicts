@@ -112,13 +112,21 @@ ggsave("Kaitlyn Data/overlap-bar-v2.pdf", width = 6, height = 3)
 
 
 # make a map of kernels
+ghana <- st_read("AAS_Layers/ghana.shp") %>% 
+    st_transform(crs = "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs")
 kernel_99 <- raster.vol(kernel_incidents, p = 0.99)
 kernel_95 <- raster.vol(kernel_incidents, p = 0.95)
 kernel_50 <- raster.vol(kernel_incidents, p = 0.50)
 all_kernel <- kernel_50 + kernel_95 + kernel_99
 all_kernel[all_kernel == 0] <- NA
-plot(all_kernel, col = c("#e9c46a", "#e3a612", "#e76f51"))
 
+pdf("Kaitlyn Data/ghana.pdf")
+plot(ghana, col = "grey")
+dev.off()
+
+pdf("Kaitlyn Data/kernels.pdf")
+plot(all_kernel, col = c("#e9c46a", "#e3a612", "#e76f51"))
+dev.off()
 
 # Line plot
 overlap_all %>% 
