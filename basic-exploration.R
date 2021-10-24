@@ -27,6 +27,21 @@ point_counts <- count(incidents, cid) %>%
     st_drop_geometry
 head(point_counts)
 
+# figure out summary stats
+min(point_counts$n)
+max(point_counts$n)
+mean(point_counts$n)
+sd(point_counts$n)
+nrow(point_counts)
+min(incidents$Depth_m)
+
+# histogram of sample sizes
+ggplot(point_counts, aes(x = n)) +
+    geom_histogram() +
+    theme_bw() +
+    xlab("Number of Potential Conflict Locations") +
+    ylab("Number of Reports")
+
 # join and calculate weights
 incidents <- left_join(incidents, point_counts) %>% 
     mutate(weight = 1/n)
