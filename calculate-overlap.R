@@ -69,7 +69,12 @@ overlap_all %>%
                                  "contour_75" = "Continental Shelf",
                                  "iez" = "Inshore Exclusion Zone",
                                  "port_10" = "10km from Port",
-                                 "port_20" = "20km from Port")) %>% 
+                                 "port_20" = "20km from Port")) %>%
+    mutate(layer = fct_relevel(layer, "Continental Shelf",
+                               "Inshore Exclusion Zone",
+                               "30m Isobath",
+                               "20km from Port",
+                               "10km from Port")) %>% 
 ggplot(aes(x = layer, y = overlap, fill = kernel2)) +
     geom_bar(stat = "identity",
              position = "dodge") +
@@ -119,6 +124,11 @@ kernel_95 <- raster.vol(kernel_incidents, p = 0.95)
 kernel_50 <- raster.vol(kernel_incidents, p = 0.50)
 all_kernel <- kernel_50 + kernel_95 + kernel_99
 all_kernel[all_kernel == 0] <- NA
+
+# calculate total size in km2
+pixel_area <- (2091.744 * 2091.744) / 1000000
+pixel_area * cellStats(kernel_99, 'sum')
+pixel_area * cellStats(kernel_50, 'sum')
 
 pdf("Kaitlyn Data/ghana.pdf")
 plot(ghana, col = "grey")
