@@ -41,6 +41,7 @@ ggplot(point_counts, aes(x = n)) +
     theme_bw() +
     xlab("Number of Potential Conflict Locations") +
     ylab("Number of Reports")
+ggsave("Kaitlyn Data/potential_location_hist.pdf", width = 4, height = 3)
 
 # join and calculate weights
 incidents <- left_join(incidents, point_counts) %>% 
